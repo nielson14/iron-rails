@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Iron Rails — Teacher Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --coal:#1a1a1a;--rust:#b94a2c;--brass:#c8922a;--cream:#f5f0e8;
+    --steel:#3a4a5c;--smoke:#6b7280;--track:#2d2d2d;
+    --success:#2d6a4f;--danger:#9b1c1c;
+  }
+  body{background:var(--coal);color:var(--cream);font-family:'Georgia',serif;min-height:100vh}
+  header{background:var(--track);border-bottom:3px solid var(--rust);padding:1.2rem 2rem;display:flex;align-items:center;gap:1rem}
+  header h1{font-size:1.6rem;color:var(--cream);letter-spacing:0.05em}
+  header span{background:var(--rust);color:var(--cream);font-size:0.7rem;padding:2px 8px;border-radius:2px;letter-spacing:0.1em;font-family:monospace}
+  main{max-width:860px;margin:0 auto;padding:2rem}
+  .gate{background:var(--track);border:1px solid #333;border-radius:6px;padding:2rem;margin-bottom:2rem}
+  .gate h2{color:var(--brass);font-size:1.1rem;margin-bottom:1rem;letter-spacing:0.05em}
+  .row{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap}
+  label{display:block;font-size:0.8rem;color:var(--smoke);margin-bottom:4px;letter-spacing:0.05em;font-family:monospace}
+  input,select{background:#111;border:1px solid #444;color:var(--cream);padding:0.6rem 0.9rem;border-radius:4px;font-size:0.95rem;font-family:'Georgia',serif;outline:none}
+  input:focus,select:focus{border-color:var(--brass)}
+  input[type=password]{letter-spacing:0.2em}
+  .btn{background:var(--rust);color:var(--cream);border:none;padding:0.65rem 1.4rem;border-radius:4px;cursor:pointer;font-family:'Georgia',serif;font-size:0.95rem;transition:background 0.15s}
+  .btn:hover{background:#d4552f}
+  .btn.secondary{background:var(--steel)}
+  .btn.secondary:hover{background:#4a5a6c}
+  .btn.danger{background:var(--danger)}
+  .btn.danger:hover{background:#7f1515}
+  .err{color:#f87171;font-size:0.85rem;margin-top:0.5rem;font-family:monospace}
+  .rooms-grid{display:grid;gap:1rem}
+  .room-card{background:#111;border:1px solid #333;border-radius:6px;padding:1.2rem 1.5rem;display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:center}
+  .room-card:hover{border-color:#555}
+  .room-code{font-family:monospace;font-size:2rem;color:var(--brass);letter-spacing:0.2em;line-height:1}
+  .room-meta{font-size:0.8rem;color:var(--smoke);margin-top:4px;font-family:monospace}
+  .tier-badge{display:inline-block;padding:2px 8px;border-radius:2px;font-size:0.7rem;font-family:monospace;letter-spacing:0.05em}
+  .tier-1{background:#1a3a1a;color:#4ade80}
+  .tier-2{background:#1a2a3a;color:#60a5fa}
+  .tier-3{background:#3a1a1a;color:#f87171}
+  .phase-badge{display:inline-block;padding:2px 8px;border-radius:2px;font-size:0.7rem;font-family:monospace;background:#2a2a1a;color:var(--brass)}
+  .player-list{margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:6px}
+  .player-chip{background:#1a1a1a;border:1px solid #333;padding:2px 8px;border-radius:2px;font-size:0.75rem;font-family:monospace;color:var(--cream)}
+  .room-actions{display:flex;gap:8px;flex-direction:column}
+  .divider{border:none;border-top:1px solid #333;margin:1.5rem 0}
+  .empty{color:var(--smoke);font-family:monospace;font-size:0.9rem;padding:1rem 0}
+  .copy-hint{font-family:monospace;font-size:0.75rem;color:var(--smoke);margin-top:4px}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot-green{background:#4ade80}
+  .dot-amber{background:var(--brass)}
+  .dot-red{background:#f87171}
+  #admin-panel{display:none}
+  .new-room-form{display:grid;gap:1rem}
+  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+  @media(max-width:600px){.form-row{grid-template-columns:1fr}}
+  .tier-desc{font-size:0.75rem;color:var(--smoke);margin-top:4px;font-family:monospace;line-height:1.4}
+  .section-title{color:var(--brass);font-size:1rem;letter-spacing:0.05em;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}
+  .section-title::after{content:'';flex:1;height:1px;background:#333}
+</style>
+</head>
+<body>
+<header>
+  <h1>Iron Rails</h1>
+  <span>TEACHER ADMIN</span>
+</header>
+<main>
+  <div class="gate" id="login-gate">
+    <h2>Admin Access</h2>
+    <div class="row">
+      <div>
+        <label>Password</label>
+        <input type="password" id="pw-input" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <button class="btn" onclick="login()">Enter</button>
+    </div>
+    <div class="err" id="login-err"></div>
+    <p style="font-size:0.75rem;color:var(--smoke);margin-top:1rem;font-family:monospace">Default password: <strong style="color:var(--cream)">ironrails</strong> — change in game-engine.js</p>
+  </div>
+
+  <div id="admin-panel">
+    <div class="gate">
+      <div class="section-title">Create a new room</div>
+      <div class="new-room-form">
+        <div class="form-row">
+          <div>
+            <label>Tier</label>
+            <select id="tier-select" onchange="updateTierDesc()">
+              <option value="1">Tier 1 — Local Routes</option>
+              <option value="2">Tier 2 — Regional Rail</option>
+              <option value="3">Tier 3 — Iron Rails</option>
+            </select>
+            <div class="tier-desc" id="tier-desc">Pre-built network. Focus on moving goods and managing debt.</div>
+          </div>
+          <div>
+            <label>Max players</label>
+            <select id="maxplayers-select">
+              <option value="3">3 players</option>
+              <option value="4" selected>4 players</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" onclick="createRoom()" style="width:100%">Create room</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gate">
+      <div class="section-title">Active rooms</div>
+      <div class="rooms-grid" id="rooms-list">
+        <div class="empty">No rooms yet. Create one above.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="game-engine.js"></script>
+<script>
+const ADMIN_PASSWORD = "ironrails";
+const IR = window.IronRails;
+let db;
+
+function login() {
+  const pw = document.getElementById('pw-input').value;
+  if(pw === ADMIN_PASSWORD) {
+    document.getElementById('login-gate').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    initFirebase();
+  } else {
+    document.getElementById('login-err').textContent = "Incorrect password.";
+  }
+}
+
+function initFirebase() {
+  if(!firebase.apps.length) firebase.initializeApp(IR.FIREBASE_CONFIG);
+  db = firebase.database();
+  listenRooms();
+}
+
+function updateTierDesc() {
+  const tier = parseInt(document.getElementById('tier-select').value);
+  document.getElementById('tier-desc').textContent = IR.TIER_RULES[tier].description;
+}
+
+async function createRoom() {
+  const tier = parseInt(document.getElementById('tier-select').value);
+  const maxPlayers = parseInt(document.getElementById('maxplayers-select').value);
+  const code = IR.generateRoomCode();
+
+  const roomData = {
+    code,
+    tier,
+    maxPlayers,
+    phase: "lobby",
+    players: {},
+    createdAt: Date.now(),
+    gameState: null
+  };
+
+  await db.ref('rooms/' + code).set(roomData);
+  alert(`Room created!\n\nRoom code: ${code}\n\nWrite this on the board for students.`);
+}
+
+function listenRooms() {
+  db.ref('rooms').on('value', snap => {
+    const rooms = snap.val() || {};
+    renderRooms(rooms);
+  });
+}
+
+function renderRooms(rooms) {
+  const list = document.getElementById('rooms-list');
+  const entries = Object.values(rooms).sort((a,b) => b.createdAt - a.createdAt);
+  if(entries.length === 0) {
+    list.innerHTML = '<div class="empty">No rooms yet. Create one above.</div>';
+    return;
+  }
+
+  list.innerHTML = entries.map(room => {
+    const players = room.players ? Object.values(room.players) : [];
+    const tierNames = {1:'Tier 1',2:'Tier 2',3:'Tier 3'};
+    const tierClass = {1:'tier-1',2:'tier-2',3:'tier-3'};
+    const dotClass = room.phase==='lobby'?'dot-amber':room.phase==='ended'?'dot-red':'dot-green';
+    const dotTitle = room.phase==='lobby'?'Waiting':'dot-green'?'In progress':'Ended';
+
+    return `
+    <div class="room-card">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="room-code">${room.code}</div>
+          <span class="tier-badge ${tierClass[room.tier]}">${tierNames[room.tier]}</span>
+          <span class="phase-badge"><span class="status-dot ${dotClass}"></span>${room.phase}</span>
+        </div>
+        <div class="room-meta">${players.length} / ${room.maxPlayers} players · Created ${timeAgo(room.createdAt)}</div>
+        <div class="player-list">
+          ${players.map(p=>`<span class="player-chip">${p.name}</span>`).join('')}
+          ${players.length===0?'<span style="font-size:0.75rem;color:var(--smoke);font-family:monospace">No players yet</span>':''}
+        </div>
+      </div>
+      <div class="room-actions">
+        ${room.phase==='lobby' && players.length >= 2 ?
+          `<button class="btn" onclick="startGame('${room.code}')">Start game</button>` : ''}
+        <button class="btn secondary" onclick="copyCode('${room.code}')">Copy code</button>
+        <button class="btn danger" onclick="deleteRoom('${room.code}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function startGame(code) {
+  const snap = await db.ref('rooms/' + code).get();
+  const room = snap.val();
+  if(!room) return;
+  const playerList = Object.values(room.players || {});
+  if(playerList.length < 2) { alert("Need at least 2 players to start."); return; }
+
+  const gameState = IR.buildInitialState(code, room.tier, playerList);
+  gameState.phase = "issue_shares";
+  gameState.activePlayer = gameState.playerOrder[0];
+
+  await db.ref('rooms/' + code).update({
+    phase: "active",
+    gameState
+  });
+}
+
+async function deleteRoom(code) {
+  if(!confirm(`Delete room ${code}? This cannot be undone.`)) return;
+  await db.ref('rooms/' + code).remove();
+}
+
+function copyCode(code) {
+  navigator.clipboard.writeText(code).then(() => alert(`Copied "${code}" to clipboard`));
+}
+
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now()-ts)/1000);
+  if(diff < 60) return diff + 's ago';
+  if(diff < 3600) return Math.floor(diff/60) + 'm ago';
+  return Math.floor(diff/3600) + 'h ago';
+}
+</script>
+</body>
+</html>
