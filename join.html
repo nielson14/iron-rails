@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Iron Rails — Join Game</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --coal:#1a1a1a;--rust:#b94a2c;--brass:#c8922a;--cream:#f5f0e8;
+    --steel:#3a4a5c;--smoke:#6b7280;--track:#2d2d2d;
+  }
+  body{background:var(--coal);color:var(--cream);font-family:'Georgia',serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem}
+  .card{background:var(--track);border:1px solid #333;border-radius:8px;padding:2.5rem 2rem;width:100%;max-width:420px}
+  .logo{text-align:center;margin-bottom:2rem}
+  .logo h1{font-size:2.2rem;color:var(--cream);letter-spacing:0.08em;line-height:1}
+  .logo p{font-size:0.75rem;color:var(--smoke);letter-spacing:0.2em;font-family:monospace;margin-top:4px}
+  .track-line{height:3px;background:linear-gradient(90deg,transparent,var(--rust),var(--brass),var(--rust),transparent);margin:1rem 0 2rem;border-radius:2px}
+  label{display:block;font-size:0.75rem;color:var(--smoke);margin-bottom:6px;letter-spacing:0.1em;font-family:monospace}
+  input{width:100%;background:#111;border:1px solid #444;color:var(--cream);padding:0.8rem 1rem;border-radius:4px;font-size:1.1rem;font-family:monospace;letter-spacing:0.25em;text-transform:uppercase;outline:none;text-align:center;margin-bottom:1rem}
+  input:focus{border-color:var(--brass)}
+  input::placeholder{letter-spacing:0.1em;text-transform:none;font-size:0.9rem;opacity:0.4}
+  .btn{width:100%;background:var(--rust);color:var(--cream);border:none;padding:0.8rem;border-radius:4px;cursor:pointer;font-family:'Georgia',serif;font-size:1rem;letter-spacing:0.05em;transition:background 0.15s;margin-top:0.5rem}
+  .btn:hover{background:#d4552f}
+  .btn:disabled{background:#444;cursor:not-allowed;opacity:0.6}
+  .err{color:#f87171;font-size:0.85rem;font-family:monospace;margin-top:0.5rem;text-align:center;min-height:1.2em}
+  .username-reveal{text-align:center;margin-top:1.5rem;padding:1.5rem;background:#111;border-radius:6px;border:1px solid #333}
+  .username-reveal p{font-size:0.75rem;color:var(--smoke);font-family:monospace;letter-spacing:0.1em;margin-bottom:8px}
+  .username-big{font-size:1.6rem;color:var(--brass);letter-spacing:0.05em;line-height:1.2}
+  .waiting{text-align:center;margin-top:1.5rem}
+  .waiting p{color:var(--smoke);font-family:monospace;font-size:0.85rem;line-height:1.8}
+  .waiting .players{margin-top:1rem;display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  .player-chip{background:#1a1a1a;border:1px solid #333;padding:3px 10px;border-radius:2px;font-size:0.8rem;font-family:monospace;color:var(--cream)}
+  .player-chip.me{border-color:var(--brass);color:var(--brass)}
+  .dots::after{content:'...';animation:dots 1.2s steps(4,end) infinite}
+  @keyframes dots{0%,100%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+  .tier-info{background:#111;border-radius:4px;padding:0.6rem 0.8rem;margin-top:0.8rem;font-family:monospace;font-size:0.75rem;color:var(--smoke);text-align:center}
+  .tier-badge{display:inline-block;padding:2px 8px;border-radius:2px;font-size:0.7rem;margin-right:6px}
+  .tier-1{background:#1a3a1a;color:#4ade80}
+  .tier-2{background:#1a2a3a;color:#60a5fa}
+  .tier-3{background:#3a1a1a;color:#f87171}
+</style>
+</head>
+<body>
+<div class="card" id="join-card">
+  <div class="logo">
+    <h1>Iron Rails</h1>
+    <p>CLASSROOM EDITION</p>
+  </div>
+  <div class="track-line"></div>
+
+  <div id="step-code">
+    <label>Room code</label>
+    <input type="text" id="code-input" maxlength="5" placeholder="Enter 5-letter code"
+      oninput="this.value=this.value.toUpperCase()"
+      onkeydown="if(event.key==='Enter')joinRoom()">
+    <div class="err" id="join-err"></div>
+    <button class="btn" onclick="joinRoom()">Join game</button>
+  </div>
+
+  <div id="step-waiting" style="display:none">
+    <div class="username-reveal">
+      <p>Your railroad name</p>
+      <div class="username-big" id="my-username">—</div>
+    </div>
+    <div class="tier-info" id="tier-info"></div>
+    <div class="waiting">
+      <p>Waiting for teacher to start<span class="dots"></span></p>
+      <div class="players" id="player-list"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="game-engine.js"></script>
+<script>
+const IR = window.IronRails;
+let db, myId, myName, roomCode;
+
+firebase.initializeApp(IR.FIREBASE_CONFIG);
+db = firebase.database();
+
+async function joinRoom() {
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('join-err');
+  errEl.textContent = '';
+
+  if(code.length !== 5) { errEl.textContent = 'Room codes are 5 characters.'; return; }
+
+  const snap = await db.ref('rooms/' + code).get();
+  const room = snap.val();
+
+  if(!room) { errEl.textContent = 'Room not found. Check the code and try again.'; return; }
+  if(room.phase === 'active') { errEl.textContent = 'This game has already started.'; return; }
+  if(room.phase === 'ended') { errEl.textContent = 'This game has ended.'; return; }
+
+  const players = room.players ? Object.values(room.players) : [];
+  if(players.length >= room.maxPlayers) { errEl.textContent = 'Room is full.'; return; }
+
+  const usedNames = players.map(p => p.name);
+  myName = IR.pickUsername(usedNames);
+  myId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  roomCode = code;
+
+  await db.ref('rooms/' + code + '/players/' + myId).set({
+    id: myId,
+    name: myName,
+    joinedAt: Date.now()
+  });
+
+  sessionStorage.setItem('ir_player', JSON.stringify({id:myId, name:myName, roomCode:code}));
+
+  document.getElementById('step-code').style.display = 'none';
+  document.getElementById('step-waiting').style.display = 'block';
+  document.getElementById('my-username').textContent = myName;
+
+  const tierNames = {1:'Tier 1 — Local Routes',2:'Tier 2 — Regional Rail',3:'Tier 3 — Iron Rails'};
+  const tierClass = {1:'tier-1',2:'tier-2',3:'tier-3'};
+  document.getElementById('tier-info').innerHTML =
+    `<span class="tier-badge ${tierClass[room.tier]}">${tierNames[room.tier]}</span>${IR.TIER_RULES[room.tier].description}`;
+
+  listenRoom(code);
+}
+
+function listenRoom(code) {
+  db.ref('rooms/' + code).on('value', snap => {
+    const room = snap.val();
+    if(!room) return;
+
+    const players = room.players ? Object.values(room.players) : [];
+    document.getElementById('player-list').innerHTML = players.map(p =>
+      `<span class="player-chip ${p.id===myId?'me':''}">${p.name}${p.id===myId?' (you)':''}</span>`
+    ).join('');
+
+    if(room.phase === 'active') {
+      window.location.href = `game.html?room=${code}&pid=${myId}&name=${encodeURIComponent(myName)}`;
+    }
+  });
+}
+</script>
+</body>
+</html>
